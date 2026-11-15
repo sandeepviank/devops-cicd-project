@@ -1,0 +1,52 @@
+name: Deploy (CD - manual, local)
+
+# CD is NOT triggered automatically. Deployment to the local Minikube cluster is done
+# manually from the Mac with:
+#
+#   export DOCKERHUB_USERNAME=<your-user>
+#   ./scripts/deploy-local.sh production <image-tag>
+#
+# This workflow documents the same deployment as a GitHub Actions job. It only runs when
+# started by hand (Actions -> Deploy (CD) -> Run workflow) and requires a self-hosted
+# runner on the Mac that runs Minikube, so the cluster credentials (~/.kube/config) never
+# leave the machine and are never stored in GitHub, repository files or workflow logs.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        type: choice
+        options: [production, staging]
+        default: production
+      image_tag:
+        description: "Image tag to deploy (default: commit SHA of the selected ref)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to Minikube with Helm
+    runs-on: [self-hosted, macOS, minikube]
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify cluster access
+        run: |
+          kubectl config current-context
+          kubectl get nodes
+
+      - name: Deploy with Helm
+        run: ./scripts/deploy-local.sh "$ENVIRONMENT" "$IMAGE_TAG"
+
+      - name: Verify rollout
+        run: |
+          NS=$([ "$ENVIRONMENT" = "staging" ] && echo devops-app-staging || echo devops-app)
+          kubectl rollout status deployment/devops-app -n "$NS" --timeout=120s
+          kubectl get pods,svc -n "$NS"
