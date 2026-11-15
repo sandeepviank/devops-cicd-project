@@ -1,4 +1,4 @@
-# devops-cicd-project
+# devops-cicd-project.
 
 End-to-end CI/CD automation for a Python Flask app: **GitHub Actions** (test, build, push) -> **Docker Hub** -> **Kubernetes (Minikube)** deployed with **Helm/kubectl**.
 
